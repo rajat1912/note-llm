@@ -33,7 +33,7 @@ func CreateNoteHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	note := models.Note{
-		ID:         uuid.New(),
+		ID:         uuid.New().String(),
 		Title:      req.Title,
 		Content:    req.Content,
 		CreatedAt:  time.Now(),
@@ -60,26 +60,20 @@ func GetNoteHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	idParam := chi.URLParam(r, "id")
-	if idParam == "" {
+	noteID := chi.URLParam(r, "id")
+	if noteID == "" {
 		http.Error(w, "Missing note ID", http.StatusBadRequest)
-		return
-	}
-
-	// Convert to UUID if your model uses UUIDs (as in POST handler)
-	noteID, err := uuid.Parse(idParam)
-	if err != nil {
-		http.Error(w, "Invalid UUID format", http.StatusBadRequest)
 		return
 	}
 
 	var note models.Note
 	collection := db.GetMongoDatabase().Collection("notes")
-	err = collection.FindOne(ctx, bson.M{"_id": noteID}).Decode(&note)
+	err := collection.FindOne(ctx, bson.M{"_id": noteID}).Decode(&note)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			http.Error(w, "Note not found", http.StatusNotFound)
 		} else {
+			fmt.Println(err.Error())
 			http.Error(w, "Database error", http.StatusInternalServerError)
 		}
 		return

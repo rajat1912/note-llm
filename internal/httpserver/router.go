@@ -11,6 +11,7 @@ type Server struct {
 func New() *Server {
 	r := chi.NewRouter()
 
-	r.Post("/create", CreateNoteHandler)
+	r.Post("/notes", CreateNoteHandler)
+	r.Get("/notes/{id}", GetNoteHandler)
 	return &Server{Router: r}
 }
