@@ -32,10 +32,13 @@ func CreateNoteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userId := r.Context().Value(UserIDKey).(string)
+
 	note := models.Note{
 		ID:         uuid.New().String(),
 		Title:      req.Title,
 		Content:    req.Content,
+		UserID:     userId,
 		CreatedAt:  time.Now(),
 		ModifiedAt: time.Now(),
 	}
@@ -68,7 +71,10 @@ func GetNoteHandler(w http.ResponseWriter, r *http.Request) {
 
 	var note models.Note
 	collection := db.GetMongoDatabase().Collection("notes")
-	err := collection.FindOne(ctx, bson.M{"_id": noteID}).Decode(&note)
+
+	userId := r.Context().Value(UserIDKey).(string)
+
+	err := collection.FindOne(ctx, bson.M{"_id": noteID, "user_id": userId}).Decode(&note)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			http.Error(w, "Note not found", http.StatusNotFound)
@@ -81,4 +87,98 @@ func GetNoteHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(note)
+}
+
+func GetAllNotesHandler(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	userId := r.Context().Value(UserIDKey).(string)
+
+	collection := db.GetMongoDatabase().Collection("notes")
+	cursor, err := collection.Find(ctx, bson.M{"user_id": userId})
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		fmt.Printf("Find error: %v\n", err)
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var notes []models.Note
+	if err := cursor.All(ctx, &notes); err != nil {
+		http.Error(w, "Failed to parse notes", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(notes)
+}
+
+func UpdateNoteHandler(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	noteID := chi.URLParam(r, "id")
+	if noteID == "" {
+		http.Error(w, "Missing note ID", http.StatusBadRequest)
+		return
+	}
+
+	var req models.UpdateNoteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	userId := r.Context().Value(UserIDKey).(string)
+
+	collection := db.GetMongoDatabase().Collection("notes")
+	filter := bson.M{"_id": noteID, "user_id": userId}
+	update := bson.M{
+		"$set": bson.M{
+			"title":       req.Title,
+			"content":     req.Content,
+			"modified_at": time.Now(),
+		},
+	}
+
+	result, err := collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		http.Error(w, "Failed to update note", http.StatusInternalServerError)
+		return
+	}
+
+	if result.MatchedCount == 0 {
+		http.Error(w, "Note not found or unauthorized", http.StatusNotFound)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent) // 204 No Content
+}
+
+func DeleteNoteHandler(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	noteID := chi.URLParam(r, "id")
+	if noteID == "" {
+		http.Error(w, "Missing note ID", http.StatusBadRequest)
+		return
+	}
+
+	userId := r.Context().Value(UserIDKey).(string)
+
+	collection := db.GetMongoDatabase().Collection("notes")
+	result, err := collection.DeleteOne(ctx, bson.M{"_id": noteID, "user_id": userId})
+	if err != nil {
+		http.Error(w, "Failed to delete note", http.StatusInternalServerError)
+		return
+	}
+
+	if result.DeletedCount == 0 {
+		http.Error(w, "Note not found or unauthorized", http.StatusNotFound)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent) // 204 No Content
 }

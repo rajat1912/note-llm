@@ -11,7 +11,19 @@ type Server struct {
 func New() *Server {
 	r := chi.NewRouter()
 
-	r.Post("/notes", CreateNoteHandler)
-	r.Get("/notes/{id}", GetNoteHandler)
+	r.Get("/auth/{provider}", Provider)
+	r.Get("/auth/{provider}/callback", Callback)
+
+	r.Group(func(r chi.Router) {
+		r.Use(JWTAuthMiddleware)
+		r.Route("/notes", func(r chi.Router) {
+			r.Post("/", CreateNoteHandler)
+			r.Get("/", GetAllNotesHandler)
+			r.Get("/{id}", GetNoteHandler)
+			r.Put("/{id}", UpdateNoteHandler)
+			r.Delete("/{id}", DeleteNoteHandler)
+		})
+	})
+
 	return &Server{Router: r}
 }

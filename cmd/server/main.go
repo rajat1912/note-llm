@@ -18,7 +18,6 @@ import (
 
 func main() {
 	srv := httpserver.New()
-
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatalf("Error loading .env file")
@@ -28,6 +27,8 @@ func main() {
 	viper.SetDefault("HTTP_PORT", "8080")
 	port := viper.GetString("HTTP_PORT")
 	addr := fmt.Sprintf(":%s", port)
+
+	httpserver.SetupAuthProviders()
 
 	server := &http.Server{
 		Addr:         addr,
