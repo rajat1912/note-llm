@@ -44,19 +44,16 @@ func CreateNoteHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	collection := db.GetMongoDatabase().Collection("notes")
-	result, err := collection.InsertOne(ctx, note)
+	_, err := collection.InsertOne(ctx, note)
 	if err != nil {
 		http.Error(w, "Failed to save note", http.StatusInternalServerError)
 		fmt.Printf("Insert error: %v\n", err)
 		return
 	}
 
-	resp := map[string]interface{}{
-		"id": result.InsertedID,
-	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(note)
 }
 
 func GetNoteHandler(w http.ResponseWriter, r *http.Request) {
@@ -153,7 +150,15 @@ func UpdateNoteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent) // 204 No Content
+	var updatedNote models.Note
+	err = collection.FindOne(ctx, filter).Decode(&updatedNote)
+	if err != nil {
+		http.Error(w, "Failed to retrieve updated note", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(updatedNote)
 }
 
 func DeleteNoteHandler(w http.ResponseWriter, r *http.Request) {

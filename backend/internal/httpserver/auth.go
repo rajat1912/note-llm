@@ -2,7 +2,6 @@ package httpserver
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -115,11 +114,6 @@ func Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Send token as JSON (or redirect with it if SPA)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"token": tokenString,
-		"email": user.Email,
-		"name":  user.Name,
-	})
+	redirectURL := fmt.Sprintf("http://localhost:5173/auth/callback#token=%s&email=%s", tokenString, user.Email)
+	http.Redirect(w, r, redirectURL, http.StatusFound)
 }
