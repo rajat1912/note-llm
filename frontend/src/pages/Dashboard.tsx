@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Grid, List, Filter } from 'lucide-react';
+import { Plus, Grid, List } from 'lucide-react';
 import Header from '../components/Header';
 import NoteCard from '../components/NoteCard';
 import NoteEditor from '../components/NoteEditor';
@@ -16,8 +16,8 @@ const Dashboard: React.FC = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const filteredNotes = useMemo(() => {
+     if (!notes) return [];
     if (!searchTerm) return notes;
-    
     return notes.filter(note =>
       note.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       note.content.toLowerCase().includes(searchTerm.toLowerCase())
@@ -132,8 +132,7 @@ const Dashboard: React.FC = () => {
                 <p className="text-gray-400 mb-6">
                   {searchTerm 
                     ? `No notes match "${searchTerm}". Try a different search term.`
-                    : 'Create your first note to get started with NoteFlow.'
-                  }
+                    : 'Create your first note to get started with NoteFlow.'}
                 </p>
                 {!searchTerm && (
                   <motion.button

@@ -73,6 +73,21 @@ class ApiService {
       throw new Error('Failed to delete note');
     }
   }
-}
 
+  async askQuestion(question: string, token: string): Promise<string> {
+    const response = await fetch(`${API_BASE_URL}/ask`, {
+      method: 'POST',
+      headers: this.getHeaders(token),
+      body: JSON.stringify({ question }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || 'Failed to get answer');
+    }
+
+    const data = await response.json();
+    return data.answer;
+  }
+}
 export const apiService = new ApiService();

@@ -9,7 +9,10 @@ import (
 	"time"
 
 	"note-llm/internal/db"
+	"note-llm/internal/llm"
 	"note-llm/internal/models"
+	"note-llm/internal/qdrant"
+	"note-llm/internal/rag"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -32,25 +35,41 @@ func CreateNoteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userId := r.Context().Value(UserIDKey).(string)
+	userId, ok := r.Context().Value(UserIDKey).(string)
+	if !ok || userId == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	stringToEmbed := fmt.Sprintf("%s\n\n%s", req.Title, req.Content)
+	embeddings, err := llm.GetEmbeddings([]string{stringToEmbed})
+	if err != nil {
+		http.Error(w, "Failed to generate embedding", http.StatusInternalServerError)
+		fmt.Printf("Embedding error: %v\n", err)
+		return
+	}
 
 	note := models.Note{
 		ID:         uuid.New().String(),
 		Title:      req.Title,
 		Content:    req.Content,
+		Embeddings: embeddings[0],
 		UserID:     userId,
 		CreatedAt:  time.Now(),
 		ModifiedAt: time.Now(),
 	}
 
 	collection := db.GetMongoDatabase().Collection("notes")
-	_, err := collection.InsertOne(ctx, note)
+	_, err = collection.InsertOne(ctx, note)
 	if err != nil {
 		http.Error(w, "Failed to save note", http.StatusInternalServerError)
 		fmt.Printf("Insert error: %v\n", err)
 		return
 	}
-
+	err = qdrant.InsertNoteEmbedding(note.ID, userId, embeddings[0])
+	if err != nil {
+		fmt.Printf("Qdrant insert error: %v\n", err)
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(note)
@@ -83,6 +102,7 @@ func GetNoteHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(note)
 }
 
@@ -186,4 +206,27 @@ func DeleteNoteHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent) // 204 No Content
+}
+
+func AskQuestionHandler(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Question string `json:"question"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Question == "" {
+		http.Error(w, "Invalid input", http.StatusBadRequest)
+		return
+	}
+
+	userID := r.Context().Value(UserIDKey).(string)
+	ctx := r.Context()
+
+	answer, err := rag.AnswerFromUserNotes(ctx, userID, req.Question)
+	if err != nil {
+		fmt.Print(err.Error())
+		http.Error(w, "Failed to generate answer", http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{"answer": answer})
 }

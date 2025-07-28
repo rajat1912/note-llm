@@ -32,6 +32,7 @@ func New() *Server {
 			r.Get("/{id}", GetNoteHandler)
 			r.Put("/{id}", UpdateNoteHandler)
 			r.Delete("/{id}", DeleteNoteHandler)
+			r.Post("/ask", AskQuestionHandler)
 		})
 	})
 

@@ -64,6 +64,10 @@ export const notesAPI = {
     const response = await api.get(`/notes/${id}`);
     return response.data;
   },
+  askQuestion: async (question: string): Promise<string> => {
+    const response = await api.post('/notes/ask', { question });
+    return response.data.answer;
+  },
 };
 
 export default api;
